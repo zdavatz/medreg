@@ -5,7 +5,9 @@ h1. medreg
 
 h2. DESCRIPTION
 
-Create yaml file for all medical doctors from http://www.medreg.admin.ch/
+Create yaml file for all
+* companies in the health care fromh ttps://www.medregbm.admin.ch/
+* medical persons from http://www.medregom.admin.ch/
 
 h2. INSTALL:
 
@@ -18,4 +20,4 @@ h2. DEVELOPERS:
 
 h2. LICENSE:
 
-* GPLv2.1
+* GPLv3
