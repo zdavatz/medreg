@@ -35,7 +35,7 @@ module Medreg
                           )
 #    GLN Person  Name  Vorname PLZ Ort Bewilligungskanton  Land  Diplom  BTM Berechtigung  Bewilligung Selbstdispensation  Bemerkung Selbstdispensation
 
-  COL = {
+  COMPANY_COL = {
     :gln                  => 0, # A
     :name_1               => 1, # B
     :name_2               => 2, # C
@@ -118,7 +118,7 @@ module Medreg
       company[:ba_type] = ba_type
       company[:narcotics] = btm.split(/\r\n\s*/)[-1]
       update_address(company)
-      Medreg.log company
+      Medreg.log company if $VERBOSE
       company
     end
     Search_failure = 'search_took_to_long'
@@ -233,7 +233,7 @@ module Medreg
       company.business_area = ba_type
       company.narcotics     = data[:narcotics]
       company.addresses     = data[:addresses]
-      Medreg.log "store_company updated #{data[:ean13]} database. ba_type #{ba_type}."
+      Medreg.log "store_company updated #{data[:ean13]} database. ba_type #{ba_type}." if $VERBOSE
     end
     def parse_xls(path)
       Medreg.log "parsing #{path}"
@@ -241,16 +241,16 @@ module Medreg
       positions = []
       rows = 0
       workbook[0].each do |row|
-        next unless row and (row[COL[:gln]] or row[COL[:name_1]])
+        next unless row and (row[COMPANY_COL[:gln]] or row[COMPANY_COL[:name_1]])
         rows += 1
         if rows > 1
           info = CompanyInfo.new
           [:gln, :name_1, :name_2, :plz, :canton_giving_permit, :country, :company_type,:drug_permit].each {
             |field|
-            cmd = "info.#{field} = row[COL[#{field.inspect}]] ? row[COL[#{field.inspect}]].value : nil"
+            cmd = "info.#{field} = row[COMPANY_COL[#{field.inspect}]] ? row[COMPANY_COL[#{field.inspect}]].value : nil"
             eval(cmd)
           }
-          @info_to_gln[ row[COL[:gln]] ? row[COL[:gln]].value : row[COL[:name_1]].value ] = info
+          @info_to_gln[ row[COMPANY_COL[:gln]] ? row[COMPANY_COL[:gln]].value : row[COMPANY_COL[:name_1]].value ] = info
         end
       end
       @glns_to_import = @info_to_gln.keys.sort.uniq
