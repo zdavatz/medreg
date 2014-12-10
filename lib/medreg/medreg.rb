@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
+require 'fileutils'
 
 module Medreg
   ARCHIVE_PATH = File.expand_path(File.join(File.dirname(__FILE__), '../../data'))
