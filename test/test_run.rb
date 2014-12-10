@@ -13,7 +13,7 @@ module ODBA
     include FlexMock::TestCase
     def setup
     end
-    def test_odba_cut_connection
+    def test_company_importer
       assert Medreg.run
     end
   end

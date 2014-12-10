@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 require 'fileutils'
+require 'medreg/company_importer'
 
 module Medreg
   ARCHIVE_PATH = File.expand_path(File.join(File.dirname(__FILE__), '../../data'))
@@ -18,7 +19,12 @@ module Medreg
     @@logfile.puts "#{Time.now}: #{msg}"
   end
 
-  def Medreg.run
-    puts "Dummy Medreg.run"
+  def Medreg.run(only_run=false)
+    Medreg.log("Starting with only_run #{only_run}")
+    unless only_run
+      importer = Medreg::CompanyImporter.new
+      importer.update
+    end
+    Medreg.log("Finished.")
   end
 end

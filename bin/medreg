@@ -34,13 +34,8 @@ rescue OptionParser::MissingArgument,
   exit 1
 end
 
-unless args.size >= 1
-  puts help
-  exit 1
-end
-
 begin
-  Medreg::run(args[0], args[1])
+  Medreg::run(args[0])
 rescue Interrupt
   puts "Unterbrochen. Breche mit Fehler ab"
   exit 1
