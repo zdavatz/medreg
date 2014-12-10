@@ -14,7 +14,7 @@ module ODBA
     def setup
     end
     def test_company_importer
-      assert Medreg.run
+      assert Medreg.run('company')
     end
   end
 end
