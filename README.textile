@@ -5,7 +5,7 @@ h1. medreg
 h2. DESCRIPTION
 
 Create yaml file for all
-* companies in the health care fromh https://www.medregbm.admin.ch/
+* companies in the health care from https://www.medregbm.admin.ch/
 * medical persons from http://www.medregom.admin.ch/
 
 h2. INSTALL:
