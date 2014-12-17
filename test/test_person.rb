@@ -2,12 +2,12 @@
 # encoding: utf-8
 
 $: << File.expand_path('..', File.dirname(__FILE__))
-$: << File.expand_path("../../src", File.dirname(__FILE__))
-
+$: << File.expand_path("../lib", File.dirname(__FILE__))
+puts File.expand_path("../lib", File.dirname(__FILE__))
 gem 'minitest'
 require 'minitest/autorun'
 require 'flexmock'
-require 'medreg/person'
+require 'medreg/person_importer'
 require 'tempfile'
 require 'ostruct'
 
@@ -16,20 +16,13 @@ Minitest::Test.i_suck_and_my_tests_are_order_dependent!()
 class TestPerson <Minitest::Test
   include FlexMock::TestCase
   RunTestTakingLong = false
-  Test_Personen_XLSX = File.expand_path(File.join(__FILE__, '../../data/xlsx/Personen_20141014.xlsx'))
+  Test_Personen_XLSX = File.expand_path(File.join(__FILE__, '../data/Personen_20141014.xlsx'))
+  def rm_log_files
+    FileUtils.rm_f(Dir.glob("#{Medreg::LOG_PATH}/.*"))
+  end
+
   def setup
-    @config = flexmock('config')
-    @doctor = flexmock('doctor', :pointer => 'pointer', :oid => 'oid')
-    @app    = flexmock('app',
-              :config => @config,
-             :doctors => [@doctor],
-             :create_doctor => @doctor,
-             :doctor_by_gln => nil,
-             :doctor_by_origin => @doctor,
-             :update           => 'update'
-            )
-    @plugin = Medreg::Person.new(@app)
-    flexmock(@plugin, :get_latest=> Test_Personen_XLSX)
+    rm_log_files
   end
 
   SomeTestCases = {
@@ -41,19 +34,20 @@ class TestPerson <Minitest::Test
   def test_aaa_zuest # name starts with aaa we want this test to be run as first
     {  7601000254207 => OpenStruct.new(:family_name => 'Züst', :first_name => 'Peter', :authority  => 'Glarus')}.each do
       |gln, info|
-      @plugin = Medreg::Person.new(@app, [gln])
-      flexmock(@plugin, :get_latest_file => [ true, Test_Personen_XLSX ] )
+       rm_log_files
+      @plugin = Medreg::PersonImporter.new([gln])
+      flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
       flexmock(@plugin, :get_doctor_data => {})
-      assert(File.exists?(Test_Personen_XLSX))
+      assert(File.exists?(Test_Personen_XLSX) , "File #{Test_Personen_XLSX} must exist")
       startTime = Time.now
-      csv_file = ODDB::Doctors::Personen_YAML
+      csv_file = Medreg::Personen_YAML
       FileUtils.rm_f(csv_file) if File.exists?(csv_file)
       created, updated, deleted, skipped = @plugin.update
       diffTime = (Time.now - startTime).to_i
       assert_equal(0, deleted)
       assert_equal(0, skipped)
       assert_equal(1, created)
-      assert_equal(0, updated)
+      assert_equal(1, updated)
       assert_equal(1, Medreg::Person.all_doctors.size)
       zuest = Medreg::Person.all_doctors.first[1] # a hash
       assert_equal(true, zuest[:may_dispense_narcotics])
@@ -74,7 +68,7 @@ class TestPerson <Minitest::Test
       addresses = zuest[:addresses]
       assert_equal(1, addresses.size)
       first_address = addresses.first
-       assert_equal(ODDB::Address2, first_address.class)
+       assert_equal(Medreg::Address2, first_address.class)
       assert_equal(1, first_address.fon.size)
       assert_equal(['Bahnhofstr. 3'], first_address.additional_lines)
       assert_equal('8753 Mollis', first_address.location)
@@ -87,42 +81,26 @@ class TestPerson <Minitest::Test
       assert_equal('3', first_address.number)
     end
   end
-  def test_parse
-    SomeTestCases.each{
-      |gln, info|
-      info.gln = gln
-      root = File.expand_path(File.join(__FILE__, "../.."))
-      @plugin = Medreg::Person.new(@app, [gln])
-      html_file = "#{root}/data/html/medreg/#{gln}.html"
-      assert(File.exist?(html_file), "File \#{html_file} must exist")
-      doc_hash = @plugin.parse_details(Nokogiri::HTML(File.read(html_file)),
-                                      gln,
-                                      info,
-                                      )
-      assert(doc_hash.is_a?(Hash), 'doc_hash must be a Hash')
-      assert(doc_hash[:addresses], 'doc_hash must have addresses')
-      assert(doc_hash[:addresses].size > 0, 'doc_hash must have at least one address')
-    }
-  end
 
   def test_update_single
     SomeTestCases.each{
       |gln, info|
-      @plugin = Medreg::Person.new(@app, [gln])
-      flexmock(@plugin, :get_latest_file => [ true, Test_Personen_XLSX ] )
+       rm_log_files
+      @plugin = Medreg::PersonImporter.new([gln])
+      flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
       flexmock(@plugin, :get_doctor_data => {})
       assert(File.exists?(Test_Personen_XLSX))
       startTime = Time.now
-      csv_file = ODDB::Doctors::Personen_YAML
+      csv_file = Medreg::Personen_YAML
       FileUtils.rm_f(csv_file) if File.exists?(csv_file)
       created, updated, deleted, skipped = @plugin.update
       diffTime = (Time.now - startTime).to_i
       assert_equal(0, deleted)
       assert_equal(0, skipped)
       assert_equal(1, created)
-      assert_equal(0, updated)
+      assert_equal(1, updated)
       assert(File.exists?(csv_file), "file #{csv_file} must be created")
-      expected = "Doctors update \n\nNumber of doctors: 1\nSkipped doctors: 0\nNew doctors: 1\nUpdated doctors: 0\nDeleted doctors: 0\n"
+      expected = "Persons update \n\nSkipped doctors: 0\nNew doctors: 1\nDoctors from previous imports: 1\nDeleted doctors: 0\n"
       assert_equal(expected, @plugin.report)
     }
   end
@@ -130,13 +108,13 @@ class TestPerson <Minitest::Test
   def test_update_some_glns
     glns_ids_to_search = [7601000078261, 7601000813282, 7601000254207, 7601000186874, 7601000201522, 7601000295958,
                           7601000010735, 7601000268969, 7601000019080, 7601000239730 ]
-    @plugin = Medreg::Person.new(@app, glns_ids_to_search)
+    @plugin = Medreg::PersonImporter.new(glns_ids_to_search)
 
-    flexmock(@plugin, :get_latest_file => [ true, Test_Personen_XLSX ] )
+    flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
     flexmock(@plugin, :get_doctor_data => {})
     assert(File.exists?(Test_Personen_XLSX))
     startTime = Time.now
-    csv_file = ODDB::Doctors::Personen_YAML
+    csv_file = Medreg::Personen_YAML
     FileUtils.rm_f(csv_file) if File.exists?(csv_file)
     created, updated, deleted, skipped = @plugin.update
     diffTime = (Time.now - startTime).to_i
@@ -148,7 +126,26 @@ class TestPerson <Minitest::Test
   end if RunTestTakingLong
 
   def test_zzz_get_latest_file # name starts with zzz we want this test to be run as last one (takes longest)
-    @plugin = Medreg::Person.new(@app, [7601000813282])
+    @plugin = Medreg::PersonImporter.new([7601000813282])
     needs_update, latest = @plugin.get_latest_file
   end if RunTestTakingLong
+
+  def test_parse
+    SomeTestCases.each{
+      |gln, info|
+      info.gln = gln
+      root = File.expand_path(File.join(__FILE__, "../.."))
+      @plugin = Medreg::PersonImporter.new([gln])
+      html_file = File.expand_path(File.join(__FILE__, "../data/#{gln}.html"))
+      assert(File.exist?(html_file), "File #{html_file} must exist")
+      doc_hash = @plugin.parse_details(Nokogiri::HTML(File.read(html_file)),
+                                      gln,
+                                      info,
+                                      )
+      assert(doc_hash.is_a?(Hash), 'doc_hash must be a Hash')
+      assert(doc_hash[:addresses], 'doc_hash must have addresses')
+      assert(doc_hash[:addresses].size > 0, 'doc_hash must have at least one address')
+    }
+  end
+
 end

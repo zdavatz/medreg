@@ -23,6 +23,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake"
   spec.add_development_dependency "flexmock"
   spec.add_development_dependency "simplecov"
-  spec.add_development_dependency "minitest" if /^1\./.match(RUBY_VERSION)
+  spec.add_development_dependency "minitest"
 end
 

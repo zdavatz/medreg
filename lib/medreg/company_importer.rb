@@ -13,7 +13,7 @@ require 'psych' if RUBY_VERSION.match(/^1\.9/)
 require "yaml"
 
 module Medreg
-  DebugImport         = defined?(MiniTest)
+  DebugImport           = defined?(Minitest) ? true : false
   BetriebeURL         = 'https://www.medregbm.admin.ch/Betrieb/Search'
   BetriebeXLS_URL     = "https://www.medregbm.admin.ch/Publikation/CreateExcelListBetriebs"
   RegExpBetriebDetail = /\/Betrieb\/Details\//
@@ -63,25 +63,36 @@ module Medreg
       @@logInfo       = []
       FileUtils.rm_f(Companies_YAML) if File.exists?(Companies_YAML)
       @yaml_file      = File.open(Companies_YAML, 'w+')
+      @companies_prev_import = 0
       @companies_created = 0
-      @companies_updated = 0
       @companies_skipped = 0
       @companies_deleted = 0
       @archive = ARCHIVE_PATH
-      @@all_companies    = []
+      @@all_companies    = {}
       setup_default_agent
+    end
+    def save_import_to_yaml(filename)
+      File.open(filename, 'w+') {|f| f.write(@@all_companies.to_yaml) }
+      save_for_log "Saved #{@@all_companies.size} doctors in #{filename}"
     end
     def update
       saved = @glns_to_import.clone
+      r_loop = ResilientLoop.new(File.basename(__FILE__, '.rb'))
+      @state_yaml = r_loop.state_file.sub('.state', '.yaml')
+      if File.exist?(@state_yaml) and File.size(@state_yaml) > 10
+        @@all_companies = YAML.load_file(@state_yaml)
+        @companies_prev_import = @@all_companies.size
+        puts "Got #{@companies_prev_import} items from previous import saved in #{@state_yaml}"
+      end
       latest = get_latest_file
       save_for_log "parse_xls #{latest} specified GLN ids #{saved.inspect}"
       parse_xls(latest)
       @info_to_gln.keys
       get_detail_to_glns(saved.size > 0 ? saved : @glns_to_import)
-      return @companies_created, @companies_updated, @companies_deleted, @companies_skipped
+      save_import_to_yaml(Companies_YAML)
+      return @companies_created, @companies_prev_import, @companies_deleted, @companies_skipped
     ensure
-      File.open(Companies_YAML, 'w+') {|f| f.write(@@all_companies.to_yaml) }
-      save_for_log "Saved #{@@all_companies.size} companies in #{Companies_YAML}"
+      save_import_to_yaml(@state_yaml) if @companies_created > 0
     end
     def setup_default_agent
       @agent = Mechanize.new
@@ -139,7 +150,7 @@ module Medreg
         while nr_tries < max_retries  and not success
           begin
             r_loop.try_run(gln, defined?(Minitest) ? 500 : 5 ) do
-              Medreg.log "Searching for company with GLN #{gln}. Skipped #{@companies_skipped}, created #{@companies_created} updated #{@companies_updated} of #{glns.size}).#{nr_tries > 0 ? ' nr_tries is ' + nr_tries.to_s : ''}"
+              Medreg.log "Searching for company with GLN #{gln}. Created #{@companies_created}. At #{@companies_created+@companies_prev_import} of #{glns.size}.#{nr_tries > 0 ? ' nr_tries is ' + nr_tries.to_s : ''}"
               page_1 = @agent.get(BetriebeURL)
               raise Search_failure if page_1.content.match(failure)
               hash = [
@@ -156,7 +167,7 @@ module Medreg
                 raise Search_failure if page_3.content.match(failure)
                 company = parse_details(page_3, gln)
                 store_company(company)
-                @@all_companies << company
+                @@all_companies[gln] =  company
               else
                 Medreg.log "could not find gln #{gln}"
                 @companies_skipped += 1
@@ -169,8 +180,8 @@ module Medreg
             nr_tries += 1
             sleep defined?(MiniTest) ? 0.01 : 60
           end
-          if (@companies_created + @companies_updated) % 100 == 99
-            Medreg.log "Start saving #{gln} after #{@companies_created} created #{@companies_updated} updated"
+          if (@companies_created + @companies_prev_import) % 100 == 99
+            Medreg.log "Start saving after #{@companies_created} created #{@companies_prev_import} from previous import"
           end
         end
       }
@@ -193,7 +204,7 @@ module Medreg
     def report
       report = "Companies update \n\n"
       report << "New companies: "       << @companies_created.to_s << "\n"
-      report << "Updated companies: "   << @companies_updated.to_s << "\n"
+      report << "Companies from previous imports: "   << @companies_prev_import.to_s << "\n"
       report << "Deleted companies: "   << @companies_deleted.to_s << "\n"
       report
     end
@@ -255,7 +266,7 @@ module Medreg
       end
       @glns_to_import = @info_to_gln.keys.sort.uniq
     end
-    def Company.all_companies
+    def CompanyImporter.all_companies
       @@all_companies
     end
   end
