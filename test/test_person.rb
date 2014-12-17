@@ -18,7 +18,7 @@ class TestPerson <Minitest::Test
   RunTestTakingLong = false
   Test_Personen_XLSX = File.expand_path(File.join(__FILE__, '../data/Personen_20141014.xlsx'))
   def rm_log_files
-    FileUtils.rm_f(Dir.glob("#{Medreg::LOG_PATH}/.*"))
+    FileUtils.rm_f(Dir.glob("#{Medreg::LOG_PATH}/*"), :verbose => true)
   end
 
   def setup
@@ -47,7 +47,7 @@ class TestPerson <Minitest::Test
       assert_equal(0, deleted)
       assert_equal(0, skipped)
       assert_equal(1, created)
-      assert_equal(1, updated)
+      assert_equal(0, updated)
       assert_equal(1, Medreg::Person.all_doctors.size)
       zuest = Medreg::Person.all_doctors.first[1] # a hash
       assert_equal(true, zuest[:may_dispense_narcotics])
@@ -98,9 +98,9 @@ class TestPerson <Minitest::Test
       assert_equal(0, deleted)
       assert_equal(0, skipped)
       assert_equal(1, created)
-      assert_equal(1, updated)
+      assert_equal(0, updated)
       assert(File.exists?(csv_file), "file #{csv_file} must be created")
-      expected = "Persons update \n\nSkipped doctors: 0\nNew doctors: 1\nDoctors from previous imports: 1\nDeleted doctors: 0\n"
+      expected = "Persons update \n\nSkipped doctors: 0\nNew doctors: 1\nDoctors from previous imports: 0\nDeleted doctors: 0\n"
       assert_equal(expected, @plugin.report)
     }
   end

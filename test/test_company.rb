@@ -17,7 +17,7 @@ class TestCompanyPlugin <Minitest::Test
   include FlexMock::TestCase
   Test_Companies_XLSX = File.expand_path(File.join(__FILE__, '../data/companies_20141014.xlsx'))
   def rm_log_files
-    FileUtils.rm_f(Dir.glob("#{Medreg::LOG_PATH}/.*"))
+    FileUtils.rm_f(Dir.glob("#{Medreg::LOG_PATH}/*"), :verbose => true)
   end
   def setup
     rm_log_files
@@ -36,10 +36,10 @@ class TestCompanyPlugin <Minitest::Test
     diffTime = (Time.now - startTime).to_i
     # $stdout.puts "result: created #{created} deleted #{deleted} skipped #{skipped} in #{diffTime} seconds"
     assert_equal(1, created)
-    assert_equal(4, updated)
+    assert_equal(0, updated)
     assert_equal(0, deleted)
     assert_equal(0, skipped)
-    assert_equal(4, Medreg::CompanyImporter.all_companies.size)
+    assert_equal(1, Medreg::CompanyImporter.all_companies.size)
     assert(File.exists?(csv_file), "file #{csv_file} must be created")
     linden = Medreg::CompanyImporter.all_companies[7601001396371]
     addresses = linden[:addresses]
@@ -71,7 +71,7 @@ class TestCompanyPlugin <Minitest::Test
     diffTime = (Time.now - startTime).to_i
     # $stdout.puts "result: created #{created} deleted #{deleted} skipped #{skipped} in #{diffTime} seconds"
     assert_equal(3, created)
-    assert_equal(4, updated)
+    assert_equal(0, updated)
     assert_equal(0, deleted)
     assert_equal(1, skipped)
     assert(File.exists?(csv_file), "file #{csv_file} must be created")
