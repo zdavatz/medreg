@@ -2,6 +2,7 @@ h1. medreg
 
 * https://github.com/zdavatz/medreg
 
+We use Travis-CI to ensure that our builds are always passing the unit test. !https://travis-ci.org/ngiger/medreg.svg?branch=master!:https://travis-ci.org/ngiger/medreg
 
 h2. DESCRIPTION
 
