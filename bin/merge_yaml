@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+
+require 'pathname'
+root = Pathname.new(__FILE__).realpath.parent.parent
+$:.unshift root.join('lib') if $0 == __FILE__
+
+require 'optparse'
+require "date"
+require 'medreg'
+require 'medreg/version'
+require 'medreg/person'
+
+ODDB = Medreg
+def help
+  <<EOS
+#$0 ver.#{Medreg::VERSION}
+Usage:
+  #{File.basename(__FILE__)} output input_file_1..
+    Merge all input files into output_file
+EOS
+end
+
+parser = OptionParser.new
+opts = {}
+parser.on_tail('-h', '--help') { puts help; exit }
+
+args = ARGV.dup
+begin
+  parser.parse!(args)
+rescue OptionParser::MissingArgument,
+       OptionParser::InvalidArgument,
+       OptionParser::InvalidOption
+  puts help
+  exit 1
+end
+
+begin
+  unless args.size >= 2
+    puts help
+    exit 1
+  end
+  all = {}
+  to_add = {}
+  puts args.inspect
+  args[1..-1].each{
+    |input|
+    next if File.size(input) < 100
+    puts "reading from file #{input} #{File.size(input)} bytes"
+    to_add = YAML.load_file(input)
+    all = all.merge(to_add)
+    puts "Added to_add #{to_add.class} #{to_add.size}. Have now #{all.size} items"
+  }
+  puts "Have now #{all.size} items to be save into #{args[0]}"
+  File.open(args[0], 'w+') {|f| f.write(all.to_yaml) }
+  puts "Saved #{all.size} items into #{args[0]}. Size is #{(File.size(args[0])/1024).to_i} kBytes"
+rescue Interrupt
+  puts "Unterbrochen. Breche mit Fehler ab"
+  exit 1
+end
+
+puts "#{__FILE__} completed successfully" if $VERBOSE

@@ -2,6 +2,11 @@ h1. medreg
 
 * https://github.com/zdavatz/medreg
 
+<<<<<<< HEAD
+=======
+We use Travis-CI to ensure that our builds are always passing the unit test. !https://travis-ci.org/ngiger/medreg.svg?branch=master!:https://travis-ci.org/ngiger/medreg
+
+>>>>>>> 3af063377fc9e2cd3e2aa29a582f35a3a65ed835
 h2. DESCRIPTION
 
 Create yaml file for all
@@ -11,6 +16,15 @@ Create yaml file for all
 h2. INSTALL:
 
 * gem install medreg
+
+
+h2. Useage
+
+* @medreg -h@ # give helpl
+* @medreg @ # get info from medreg for all doctors and pharmacies
+* @medreg persons@ # get info from medreg for all doctors
+* @medreg companies@ # get info from medreg for all pharmacies
+* @merge_yaml output input_file_1 ..@ # merge all input files into the output
 
 h2. DEVELOPERS:
 

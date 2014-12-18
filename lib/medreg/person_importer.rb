@@ -16,7 +16,7 @@ require "yaml"
 require 'timeout'
 
 module Medreg
-  DebugImport           = false
+  DebugImport           = defined?(Minitest) ? true : false
   Personen_Candidates   = File.expand_path(File.join(__FILE__, '../../../data/Personen_20*.xlsx'))
   Personen_YAML         = File.expand_path(File.join(__FILE__, "../../../data/persons_#{Time.now.strftime('%Y.%m.%d-%H%M')}.yaml"))
   Personen_CSV          = File.expand_path(File.join(__FILE__, "../../../data/persons_#{Time.now.strftime('%Y.%m.%d-%H%M')}.csv"))
@@ -57,7 +57,7 @@ module Medreg
       withTimeStamp = "#{Time.now.strftime('%Y-%m-%d %H:%M:%S')}: #{msg}" unless defined?(MiniTest)
       @@logInfo << withTimeStamp
     end
-    def initialize(app=nil, glns_to_import = [])
+    def initialize(glns_to_import = [])
       @glns_to_import = glns_to_import.clone
       @glns_to_import.delete_if {|item| item.size == 0}
       @info_to_gln    = {}
@@ -67,10 +67,10 @@ module Medreg
       FileUtils.mkdir_p(File.dirname(Personen_YAML))
       @yaml_file      = File.open(Personen_YAML, 'w+')
       @csv_file       = File.open(Personen_CSV,  'w+')
-      @persons_created = 0
-      @persons_updated = 0
+      @persons_prev_import = 0
       @persons_skipped = 0
       @persons_deleted = 0
+      @persons_created = 0
       @skip_to_doctor  = nil
       @archive = ARCHIVE_PATH
       @@all_doctors    = {}
@@ -92,18 +92,31 @@ module Medreg
         @@all_doctors.each{ |doctor| csv << [] }
       end
     end
+
+    def save_import_to_yaml(filename)
+      File.open(filename, 'w+') {|f| f.write(@@all_doctors.to_yaml) }
+      save_for_log "Saved #{@@all_doctors.size} doctors in #{filename}"
+    end
+
     def update
       saved = @glns_to_import.clone
+      r_loop = ResilientLoop.new(File.basename(__FILE__, '.rb'))
+      @state_yaml = r_loop.state_file.sub('.state', '.yaml')
+      if File.exist?(@state_yaml)
+        @@all_doctors = YAML.load_file(@state_yaml)
+        @persons_prev_import = @@all_doctors.size
+        puts "Got #{@persons_prev_import} items from previous import saved in #{@state_yaml}"
+      end
       latest = get_latest_file
       save_for_log "parse_xls #{latest} specified GLN glns #{saved.inspect}"
       parse_xls(latest)
       @info_to_gln.keys
       get_detail_to_glns(saved.size > 0 ? saved : @glns_to_import)
-      return @persons_created, @persons_updated, @persons_deleted, @persons_skipped
+      save_import_to_yaml(Personen_YAML)
+      return @persons_created, @persons_prev_import, @persons_deleted, @persons_skipped
     ensure
       # write_csv_file
-      File.open(Personen_YAML, 'w+') {|f| f.write(@@all_doctors.to_yaml) }
-      save_for_log "Saved #{@@all_doctors.size} doctors in #{Personen_YAML}"
+      save_import_to_yaml(@state_yaml) if @persons_created > 0
     end
     def setup_default_agent
       @agent = Mechanize.new
@@ -212,6 +225,7 @@ module Medreg
         end
         medregId = page_4.body.match(regExp)[1]
         page_5 = @agent.get(MedRegOmURL + "de/Detail/Detail?pid=#{medregId}")
+
         File.open(File.join(LOG_PATH, "#{gln}.html"), 'w+') { |f| f.write page_5.content } if DebugImport
         doc_hash = parse_details( Nokogiri::HTML(page_5.content), gln, info)
         store_doctor(doc_hash)
@@ -234,7 +248,7 @@ module Medreg
         nr_tries = 0
         while nr_tries < max_retries
           begin
-             Medreg.log "Searching for doctor with GLN #{gln}. Skipped #{@persons_skipped}, created #{@persons_created} updated #{@persons_updated} of #{glns.size}).#{nr_tries > 0 ? ' nr_tries is ' + nr_tries.to_s : ''}"
+             Medreg.log "Searching for doctor with GLN #{gln}. Created #{@persons_created}. At #{@persons_created+@persons_prev_import} of #{glns.size}.#{nr_tries > 0 ? ' nr_tries is ' + nr_tries.to_s : ''}"
               get_one_doctor(r_loop, gln)
               break
           rescue Mechanize::ResponseCodeError, Timeout::Error => e
@@ -251,8 +265,8 @@ module Medreg
         end
         raise "Max retries #{nr_tries} for #{gln.to_s} reached. Aborting import" if nr_tries == max_retries
         @persons_created += 1
-        if (@persons_created + @persons_updated) % 100 == 99
-           Medreg.log "Start saving after #{@persons_created} created #{@persons_updated} updated"
+        if (@persons_created + @persons_prev_import) % 100 == 99
+           Medreg.log "Start saving after #{@persons_created} created #{@persons_prev_import} from previous import"
         end
       }
       r_loop.finished
@@ -329,7 +343,7 @@ module Medreg
       report = "Persons update \n\n"
       report << "Skipped doctors: #{@persons_skipped}#{@skip_to_doctor ? '. Waited for ' + @skip_to_doctor.to_s : ''}" << "\n"
       report << "New doctors: "       << @persons_created.to_s << "\n"
-      report << "Updated doctors: "   << @persons_updated.to_s << "\n"
+      report << "Doctors from previous imports: "   << @persons_prev_import.to_s << "\n"
       report << "Deleted doctors: "   << @persons_deleted.to_s << "\n"
       report
     end
@@ -375,7 +389,7 @@ module Medreg
       }
     end
     def parse_xls(path)
-       Medreg.log "parsing #{path}"
+      Medreg.log "parsing #{path}"
       workbook = RubyXL::Parser.parse(path)
       positions = []
       rows = 0
