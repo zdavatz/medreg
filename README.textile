@@ -2,11 +2,8 @@ h1. medreg
 
 * https://github.com/zdavatz/medreg
 
-<<<<<<< HEAD
-=======
 We use Travis-CI to ensure that our builds are always passing the unit test. !https://travis-ci.org/ngiger/medreg.svg?branch=master!:https://travis-ci.org/ngiger/medreg
 
->>>>>>> 3af063377fc9e2cd3e2aa29a582f35a3a65ed835
 h2. DESCRIPTION
 
 Create yaml file for all
