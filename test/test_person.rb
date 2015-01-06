@@ -175,5 +175,38 @@ class TestPerson <Minitest::Test
       assert(doc_hash[:addresses].size > 0, 'doc_hash must have at least one address')
     }
   end
-
+  def test_empty_address_lines
+    gln = 7601000264015
+    info = OpenStruct.new(:family_name => 'Togninalli', :first_name => 'Danilo',  :authority  => 'Tessin')
+      rm_log_files
+    @plugin = Medreg::PersonImporter.new([gln])
+    flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
+    flexmock(@plugin, :get_doctor_data => {})
+    assert(File.exists?(Test_Personen_XLSX))
+    startTime = Time.now
+    yaml_file = Medreg::Personen_YAML
+    csv_file = yaml_file.sub('.yaml', '.csv')
+    FileUtils.rm_f(csv_file) if File.exists?(csv_file)
+    FileUtils.rm_f(yaml_file) if File.exists?(yaml_file)
+    created, updated, deleted, skipped = @plugin.update
+    diffTime = (Time.now - startTime).to_i
+    assert_equal(0, deleted)
+    assert_equal(0, skipped)
+    assert_equal(1, created)
+    assert_equal(0, updated)
+    assert(File.exists?(yaml_file), "file #{csv_file} must be created")
+    assert_equal(nil, /ERROR: could not find info for GLN/.match(@plugin.report), 'Should not find an error')
+    assert(/New doctors: 1/.match(@plugin.report), 'Should find 1 new doctor')
+    yaml_inhalt = IO.read(yaml_file)
+    assert(yaml_inhalt.size > 50, "yaml file #{yaml_file} should be bigger than 50 char, but is #{yaml_inhalt.size}")
+    assert(File.exists?(csv_file), "file #{csv_file} must be created")
+    csv = IO.readlines(csv_file)
+    assert(csv.size > 1, "csv file #{csv_file} should have more than 1 line. Has  #{csv.size}")
+    csv_inhalt = IO.read(csv_file)
+    assert(csv_inhalt.size > 50, "csv file #{csv_file} should be bigger than 50 char, but is #{csv_inhalt.size}")
+    csv.each{
+      |line|
+      assert_equal(0, line.index(/^(ean13|7601)/), "All lines must start with ean13 or 7601. But not  #{line}")
+    }
+  end
 end

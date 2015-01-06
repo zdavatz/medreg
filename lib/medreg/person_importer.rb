@@ -335,7 +335,7 @@ module Medreg
                     address.fax << line.split('Fax: ')[1].gsub(/\-/, ' ')
                     next
                   else
-                    next if line.length == 0
+                    next if line.length <= 1
                     if m = line.match(/(|\w\w[-\. ])(\d{4})\s+(\S+)/)
                       address.location = line
                     else
