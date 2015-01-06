@@ -14,6 +14,7 @@ require 'cgi'
 require 'psych' if RUBY_VERSION.match(/^1\.9/)
 require "yaml"
 require 'timeout'
+require 'csv'
 
 module Medreg
   DebugImport           = defined?(Minitest) ? true : false
@@ -74,22 +75,52 @@ module Medreg
       @skip_to_doctor  = nil
       @archive = ARCHIVE_PATH
       @@all_doctors    = {}
+      @@errors         = []
       setup_default_agent unless setup_default_agent
     end
-    def write_csv_file
-      CSV.open(Personen_CSV, "wb") do |csv|
-        csv << ["ean13", "name", "firstname", "may_dispense_narcotics", "remark_sell_drugs", "specialities", "capabilities",
+    def save_import_to_yaml(filename)
+      File.open(filename, 'w+') {|f| f.write(@@all_doctors.to_yaml) }
+      save_for_log "Saved #{@@all_doctors.size} doctors in #{filename}"
+    end
+    def save_import_to_csv(filename)
+      def add_item(info, item)
+        info << item.to_s.gsub(',',' ')
+      end
+      field_names = ["ean13",
+                "name",
+                "firstname",
+                "specialities",
+                "capabilities",
+                "may_dispense_narcotics",
+                "remark_sell_drugs",
                 "address_additional_lines",
                 "address_canton",
                 "address_fax",
                 "address_fon",
                 "address_location",
-                "address_revision",
                 "address_type",
-                "address_revision",
                 ]
-        csv << ["another", "row"]
-        @@all_doctors.each{ |doctor| csv << [] }
+      CSV.open(filename, "wb") do |csv|
+        csv << field_names
+        @@all_doctors.each{ |gln, doctor|
+                            maxlines = 0
+                            maxlines = doctor[:specialities].size if doctor[:specialities].size > maxlines
+                            maxlines = doctor[:capabilities].size if doctor[:capabilities].size > maxlines
+                            maxlines = doctor[:addresses].size    if doctor[:addresses].size > maxlines
+                            0.upto(maxlines-1).
+                          each{
+                               |idx|
+                                info = []
+                                field_names[0..2].each{ |name| add_item(info, eval("doctor[:#{name}]")) }
+                                add_item(info, doctor[:specialities][idx])
+                                add_item(info, doctor[:capabilities][idx])
+                                add_item(info, doctor[:may_dispense_narcotics] ? 1 : 0)
+                                add_item(info, doctor[:remark_sell_drugs])
+                                address = doctor[:addresses][idx]
+                                field_names[7..-1].each{ |name| add_item(info, eval("x = address.#{name.sub('address_','')}; x.is_a?(Array) ? x.join(\"\n\") : x")) } if address
+                                csv << info
+                              }
+                          }
       end
     end
 
@@ -113,10 +144,13 @@ module Medreg
       @info_to_gln.keys
       get_detail_to_glns(saved.size > 0 ? saved : @glns_to_import)
       save_import_to_yaml(Personen_YAML)
+      save_import_to_csv(Personen_CSV)
       return @persons_created, @persons_prev_import, @persons_deleted, @persons_skipped
     ensure
-      # write_csv_file
-      save_import_to_yaml(@state_yaml) if @persons_created > 0
+      if @persons_created > 0
+        save_import_to_yaml(@state_yaml)
+        save_import_to_csv(@state_yaml.sub('.yaml','.csv'))
+      end
     end
     def setup_default_agent
       @agent = Mechanize.new
@@ -133,7 +167,7 @@ module Medreg
 
     def parse_details(doc, gln, info)
       unless doc.xpath("//tr") and doc.xpath("//tr").size > 3
-         Medreg.log "ERROR: Could not find a table with info for #{gln}"
+        Medreg.log "ERROR: Could not find a table with info for #{gln}"
         return nil
       end
       doc_hash = Hash.new
@@ -182,7 +216,9 @@ module Medreg
         end
         info = @info_to_gln[gln.to_s]
         unless info
-           Medreg.log "ERROR: could not find info for GLN #{gln}"
+          msg = "ERROR: could not find info for GLN #{gln}"
+          @@errors << msg
+          Medreg.log msg
           next
         end
         url = MedRegOmURL +  "de/Suche/Detail/?gln=#{gln}&vorname=#{info.first_name.gsub(/ /, '+')}&name=#{info.family_name.gsub(/ /, '+')}"
@@ -220,7 +256,9 @@ module Medreg
         regExp = /id"\:(\d\d+)/i
         unless page_4.body.match(regExp)
           File.open(File.join(LOG_PATH, 'page_4.body'), 'w+') { |f| f.write page_4.body }
-           Medreg.log "ERROR: Could not find an gln #{gln} via url #{url}"
+          msg = "ERROR: Could not find an gln #{gln} via url #{url}"
+          @@errors << msg
+          Medreg.log msg
           next
         end
         medregId = page_4.body.match(regExp)[1]
@@ -229,6 +267,7 @@ module Medreg
         File.open(File.join(LOG_PATH, "#{gln}.html"), 'w+') { |f| f.write page_5.content } if DebugImport
         doc_hash = parse_details( Nokogiri::HTML(page_5.content), gln, info)
         store_doctor(doc_hash)
+        @persons_created += 1
         @@all_doctors[gln.to_s] = doc_hash
       end
     end
@@ -264,10 +303,6 @@ module Medreg
           end
         end
         raise "Max retries #{nr_tries} for #{gln.to_s} reached. Aborting import" if nr_tries == max_retries
-        @persons_created += 1
-        if (@persons_created + @persons_prev_import) % 100 == 99
-           Medreg.log "Start saving after #{@persons_created} created #{@persons_prev_import} from previous import"
-        end
       }
       r_loop.finished
     end
@@ -340,11 +375,16 @@ module Medreg
       target
     end
     def report
-      report = "Persons update \n\n"
+      report = "Persons update\n\n"
       report << "Skipped doctors: #{@persons_skipped}#{@skip_to_doctor ? '. Waited for ' + @skip_to_doctor.to_s : ''}" << "\n"
       report << "New doctors: "       << @persons_created.to_s << "\n"
       report << "Doctors from previous imports: "   << @persons_prev_import.to_s << "\n"
       report << "Deleted doctors: "   << @persons_deleted.to_s << "\n"
+      if @@errors.size > 0
+        report << "\n\nFound following errors/warnings:\n\n"
+        report << @@errors.join("\n")
+        report << "\n"
+      end
       report
     end
     def store_doctor(hash)
@@ -423,7 +463,9 @@ private
         # infos[1] = infos[1].to_i # transform year into an integer
         return infos.join(', ')
       else
-         Medreg.log "PROBLEM: could not find speciality for GLN #{gln} in line '#{line}'"
+        msg = "PROBLEM: could not find speciality for GLN #{gln} in line '#{line}'"
+        @@errors << msg
+        Medreg.log msg
       end
       nil
     end

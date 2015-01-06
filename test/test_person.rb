@@ -29,7 +29,6 @@ class TestPerson <Minitest::Test
     7601000010735 => OpenStruct.new(:family_name => 'Cevey',        :first_name => 'Philippe Marc', :authority  => 'Waadt'),
     7601000813282 => OpenStruct.new(:family_name => 'ABANTO PAYER', :first_name => 'Dora Carmela',  :authority  => 'Waadt'),
   }
-
   # Anita Hensel 7601000972620
   def test_aaa_zuest # name starts with aaa we want this test to be run as first
     {  7601000254207 => OpenStruct.new(:family_name => 'Züst', :first_name => 'Peter', :authority  => 'Glarus')}.each do
@@ -81,28 +80,57 @@ class TestPerson <Minitest::Test
       assert_equal('3', first_address.number)
     end
   end
-
+  def test_update_with_error
+    gln = 9999
+    info = OpenStruct.new(:family_name => 'NoName', :first_name => 'NoFirstName', :authority  => 'NoSuchCanton')
+    @plugin = Medreg::PersonImporter.new([gln])
+    flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
+    flexmock(@plugin, :get_doctor_data => {})
+    assert(File.exists?(Test_Personen_XLSX))
+    startTime = Time.now
+    yaml_file = Medreg::Personen_YAML
+    csv_file = yaml_file.sub('.yaml', '.csv')
+    FileUtils.rm_f(csv_file) if File.exists?(csv_file)
+    FileUtils.rm_f(yaml_file) if File.exists?(yaml_file)
+    created, updated, deleted, skipped = @plugin.update
+    diffTime = (Time.now - startTime).to_i
+    assert_equal(0, deleted)
+    assert_equal(0, skipped)
+    assert_equal(0, created)
+    assert_equal(0, updated)
+    assert(File.exists?(yaml_file), "file #{csv_file} must be created")
+    assert(/ERROR: could not find info for GLN/.match(@plugin.report), 'Should find error')
+    assert(/New doctors: 0/.match(@plugin.report), 'Should find 0 new doctor')
+  end
   def test_update_single
-    SomeTestCases.each{
-      |gln, info|
-       rm_log_files
-      @plugin = Medreg::PersonImporter.new([gln])
-      flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
-      flexmock(@plugin, :get_doctor_data => {})
-      assert(File.exists?(Test_Personen_XLSX))
-      startTime = Time.now
-      csv_file = Medreg::Personen_YAML
-      FileUtils.rm_f(csv_file) if File.exists?(csv_file)
-      created, updated, deleted, skipped = @plugin.update
-      diffTime = (Time.now - startTime).to_i
-      assert_equal(0, deleted)
-      assert_equal(0, skipped)
-      assert_equal(1, created)
-      assert_equal(0, updated)
-      assert(File.exists?(csv_file), "file #{csv_file} must be created")
-      expected = "Persons update \n\nSkipped doctors: 0\nNew doctors: 1\nDoctors from previous imports: 0\nDeleted doctors: 0\n"
-      assert_equal(expected, @plugin.report)
-    }
+    gln = 7601000254207
+    info = OpenStruct.new(:family_name => 'Züst', :first_name => 'Peter',  :authority  => 'Glarus')
+      rm_log_files
+    @plugin = Medreg::PersonImporter.new([gln])
+    flexmock(@plugin, :get_latest_file => Test_Personen_XLSX )
+    flexmock(@plugin, :get_doctor_data => {})
+    assert(File.exists?(Test_Personen_XLSX))
+    startTime = Time.now
+    yaml_file = Medreg::Personen_YAML
+    csv_file = yaml_file.sub('.yaml', '.csv')
+    FileUtils.rm_f(csv_file) if File.exists?(csv_file)
+    FileUtils.rm_f(yaml_file) if File.exists?(yaml_file)
+    created, updated, deleted, skipped = @plugin.update
+    diffTime = (Time.now - startTime).to_i
+    assert_equal(0, deleted)
+    assert_equal(0, skipped)
+    assert_equal(1, created)
+    assert_equal(0, updated)
+    assert(File.exists?(yaml_file), "file #{csv_file} must be created")
+    assert_equal(nil, /ERROR: could not find info for GLN/.match(@plugin.report), 'Should not find an error')
+    assert(/New doctors: 1/.match(@plugin.report), 'Should find 1 new doctor')
+    yaml_inhalt = IO.read(yaml_file)
+    assert(yaml_inhalt.size > 50, "yaml file #{yaml_file} should be bigger than 50 char, but is #{yaml_inhalt.size}")
+    assert(File.exists?(csv_file), "file #{csv_file} must be created")
+    csv = IO.readlines(csv_file)
+    assert(csv.size > 1, "csv file #{csv_file} should have more than 1 line. Has  #{csv.size}")
+    csv_inhalt = IO.read(csv_file)
+    assert(csv_inhalt.size > 50, "csv file #{csv_file} should be bigger than 50 char, but is #{csv_inhalt.size}")
   end
 
   def test_update_some_glns

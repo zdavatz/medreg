@@ -18,7 +18,7 @@ h2. INSTALL:
 h2. Useage
 
 * @medreg -h@ # give helpl
-* @medreg @ # get info from medreg for all doctors and pharmacies
+* @medreg@ # get info from medreg for all doctors and pharmacies
 * @medreg persons@ # get info from medreg for all doctors
 * @medreg companies@ # get info from medreg for all pharmacies
 * @merge_yaml output input_file_1 ..@ # merge all input files into the output
