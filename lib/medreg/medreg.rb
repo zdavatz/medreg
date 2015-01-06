@@ -5,9 +5,9 @@ require 'medreg/company_importer'
 require 'medreg/person_importer'
 
 module Medreg
-  ARCHIVE_PATH = File.expand_path(File.join(File.dirname(__FILE__), '../../data'))
-  LOG_PATH     = File.expand_path(File.join(File.dirname(__FILE__), '../../log'))
-  Mechanize_Log         = File.join(LOG_PATH, File.basename(__FILE__).sub('.rb', '.log'))
+  ARCHIVE_PATH = File.expand_path(File.join(Dir.pwd, 'data'))
+  LOG_PATH     = File.expand_path(File.join(Dir.pwd, 'log'))
+  Mechanize_Log = File.join(LOG_PATH, File.basename(__FILE__).sub('.rb', '.log'))
   FileUtils.mkdir_p(LOG_PATH)
   FileUtils.mkdir_p(ARCHIVE_PATH)
   FileUtils.mkdir_p(File.dirname(Mechanize_Log))
