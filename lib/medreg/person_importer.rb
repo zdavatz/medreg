@@ -103,7 +103,7 @@ module Medreg
       CSV.open(filename, "wb") do |csv|
         csv << field_names
         @@all_doctors.each{ |gln, doctor|
-                            maxlines = 0
+                            maxlines = 1
                             maxlines = doctor[:specialities].size if doctor[:specialities].size > maxlines
                             maxlines = doctor[:capabilities].size if doctor[:capabilities].size > maxlines
                             maxlines = doctor[:addresses].size    if doctor[:addresses].size > maxlines

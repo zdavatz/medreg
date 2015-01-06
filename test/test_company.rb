@@ -30,8 +30,10 @@ class TestCompanyPlugin <Minitest::Test
     flexmock(@plugin, :get_company_data => {})
     flexmock(@plugin, :puts => nil)
     startTime = Time.now
-    csv_file = Medreg::Companies_YAML
+    csv_file = Medreg::Companies_CSV
     FileUtils.rm_f(csv_file) if File.exists?(csv_file)
+    yaml_file = Medreg::Companies_YAML
+    FileUtils.rm_f(yaml_file) if File.exists?(yaml_file)
     created, updated, deleted, skipped = @plugin.update
     diffTime = (Time.now - startTime).to_i
     # $stdout.puts "result: created #{created} deleted #{deleted} skipped #{skipped} in #{diffTime} seconds"
@@ -41,6 +43,7 @@ class TestCompanyPlugin <Minitest::Test
     assert_equal(0, skipped)
     assert_equal(1, Medreg::CompanyImporter.all_companies.size)
     assert(File.exists?(csv_file), "file #{csv_file} must be created")
+    assert(File.exists?(yaml_file), "file #{yaml_file} must be created")
     linden = Medreg::CompanyImporter.all_companies[7601001396371]
     addresses = linden[:addresses]
     assert_equal(1, addresses.size)
@@ -55,9 +58,12 @@ class TestCompanyPlugin <Minitest::Test
     assert_equal('Mitteldorf', first_address.street)
     assert_equal([], first_address.additional_lines)
     assert_equal('AB Lindenapotheke AG', first_address.name)
+    inhalt = IO.read(yaml_file)
+    assert(inhalt.index('6011 Verzeichnis a/b/c BetmVV-EDI'), 'must find btm')
     inhalt = IO.read(csv_file)
-    assert(inhalt.index('6011 Verzeichnis a/b/c BetmVV-EDI') > 0, 'must find btm')
-#	7601001396371	AB Lindenapotheke AG		Mitteldorf	4	5102	Rupperswil	Aargau	Schweiz	öffentliche Apotheke	6011 Verzeichnis a/b/c BetmVV-EDI
+    assert(inhalt.index('6011 Verzeichnis a/b/c BetmVV-EDI'), 'must find btm')
+    csv = IO.readlines(csv_file)
+    assert(csv.size > 1,  "csv_file #{csv_file} must have more than 1 line. Currently #{csv.size}.")
   end
   def test_update_all
     @plugin = Medreg::CompanyImporter.new()

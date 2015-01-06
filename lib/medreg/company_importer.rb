@@ -17,9 +17,10 @@ module Medreg
   BetriebeURL         = 'https://www.medregbm.admin.ch/Betrieb/Search'
   BetriebeXLS_URL     = "https://www.medregbm.admin.ch/Publikation/CreateExcelListBetriebs"
   RegExpBetriebDetail = /\/Betrieb\/Details\//
-  Companies_curr      = File.expand_path(File.join(__FILE__, "../../../data/companies_#{Time.now.strftime('%Y.%m.%d')}.xlsx"))
-  Companies_YAML      = File.expand_path(File.join(__FILE__, "../../../data/companies_#{Time.now.strftime('%Y.%m.%d')}.yaml"))
-  # MedRegURL     = 'http://www.medreg.admin.ch/'
+  TimeStamp            = Time.now.strftime('%Y.%m.%d')
+  Companies_curr      = File.join(ARCHIVE_PATH, "companies_#{TimeStamp}.xlsx")
+  Companies_YAML      = File.join(ARCHIVE_PATH, "companies_#{TimeStamp}.yaml")
+  Companies_CSV       = File.join(ARCHIVE_PATH, "companies_#{TimeStamp}.csv")
   CompanyInfo = Struct.new("CompanyInfo",
                           :gln,
                           :exam,
@@ -71,9 +72,44 @@ module Medreg
       @@all_companies    = {}
       setup_default_agent
     end
+    def save_import_to_csv(filename)
+      def add_item(info, item)
+        info << item.to_s.gsub(',',' ')
+      end
+      field_names = ["ean13",
+                "name",
+                "plz",
+                "location",
+                "address",
+                "ba_type",
+                "narcotics",
+                "address_additional_lines",
+                "address_canton",
+                "address_fax",
+                "address_fon",
+                "address_location",
+                "address_type",
+                ]
+      CSV.open(filename, "wb") do |csv|
+        csv << field_names
+        @@all_companies.each{ |gln, person|
+                            maxlines = 1
+                            maxlines = person[:addresses].size if person[:addresses].size > maxlines
+                            0.upto(maxlines-1).
+                          each{
+                               |idx|
+                                info = []
+                                field_names[0..6].each{ |name| add_item(info, eval("person[:#{name}]")) }
+                                address = person[:addresses][idx]
+                                field_names[7..-1].each{ |name| add_item(info, eval("x = address.#{name.sub('address_','')}; x.is_a?(Array) ? x.join(\"\n\") : x")) } if address
+                                csv << info
+                              }
+                          }
+      end
+    end
     def save_import_to_yaml(filename)
       File.open(filename, 'w+') {|f| f.write(@@all_companies.to_yaml) }
-      save_for_log "Saved #{@@all_companies.size} doctors in #{filename}"
+      save_for_log "Saved #{@@all_companies.size} companies in #{filename}"
     end
     def update
       saved = @glns_to_import.clone
@@ -90,9 +126,13 @@ module Medreg
       @info_to_gln.keys
       get_detail_to_glns(saved.size > 0 ? saved : @glns_to_import)
       save_import_to_yaml(Companies_YAML)
+      save_import_to_csv(Companies_CSV)
       return @companies_created, @companies_prev_import, @companies_deleted, @companies_skipped
     ensure
-      save_import_to_yaml(@state_yaml) if @companies_created > 0
+      if @companies_created > 0
+        save_import_to_yaml(@state_yaml)
+        save_import_to_csv(@state_yaml.sub('.yaml','.csv'))
+      end
     end
     def setup_default_agent
       @agent = Mechanize.new
