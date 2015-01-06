@@ -17,7 +17,6 @@ require 'timeout'
 require 'csv'
 
 module Medreg
-  DebugImport           = defined?(Minitest) ? true : false
   Personen_Candidates   = File.expand_path(File.join(__FILE__, '../../../data/Personen_20*.xlsx'))
   Personen_YAML         = File.expand_path(File.join(__FILE__, "../../../data/persons_#{Time.now.strftime('%Y.%m.%d-%H%M')}.yaml"))
   Personen_CSV          = File.expand_path(File.join(__FILE__, "../../../data/persons_#{Time.now.strftime('%Y.%m.%d-%H%M')}.csv"))

@@ -1,10 +1,9 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 require 'fileutils'
-require 'medreg/company_importer'
-require 'medreg/person_importer'
 
 module Medreg
+  DebugImport         ||= defined?(Minitest) ? true : false
   ARCHIVE_PATH = File.expand_path(File.join(Dir.pwd, 'data'))
   LOG_PATH     = File.expand_path(File.join(Dir.pwd, 'log'))
   Mechanize_Log = File.join(LOG_PATH, File.basename(__FILE__).sub('.rb', '.log'))
@@ -35,3 +34,6 @@ module Medreg
     Medreg.log("Finished.")
   end
 end
+
+require 'medreg/company_importer'
+require 'medreg/person_importer'

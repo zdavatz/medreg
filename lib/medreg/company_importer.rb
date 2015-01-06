@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+require 'medreg'
 require 'medreg/address'
 require 'medreg/ba_type'
 require 'medreg/company'
@@ -13,7 +14,6 @@ require 'psych' if RUBY_VERSION.match(/^1\.9/)
 require "yaml"
 
 module Medreg
-  DebugImport           = defined?(Minitest) ? true : false
   BetriebeURL         = 'https://www.medregbm.admin.ch/Betrieb/Search'
   BetriebeXLS_URL     = "https://www.medregbm.admin.ch/Publikation/CreateExcelListBetriebs"
   RegExpBetriebDetail = /\/Betrieb\/Details\//
